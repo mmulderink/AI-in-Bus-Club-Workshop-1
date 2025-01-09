@@ -1,0 +1,44 @@
+import os
+from openai import OpenAI
+from crewai import Agent, Task, Crew, Process
+from crewai_tools import ScrapeWebsiteTool
+
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+scrape_tool = ScrapeWebsiteTool()
+# find more tools at https://docs.crewai.com/
+
+# Creating a senior researcher agent with memory and verbose mode
+initial_researcher = Agent(
+    role='Summarizer that concisely summarizes the information from a website',
+    goal='Do not miss any important info yet write concisely',
+    backstory=("Driven to give great summaries to pass on."),
+    tools=[scrape_tool],
+    verbose=True,
+    output_file='research_summary.md'
+)
+
+# task
+determine_initial_researcher = Task(
+    description=(
+        "Get an understanding of the topic: {topic}. Use the research the initial research gives to do this."
+    ),
+    expected_output='A comprehensive list of bullet points that gives the full picture on the topic',
+    agent=initial_researcher,
+    output_file='output.md',
+)
+
+
+# Forming the tech-focused crew with some enhanced configurations
+crew = Crew(
+    agents=[initial_researcher],
+    tasks=[determine_initial_researcher],
+    max_rpm=100,
+)
+
+# Starting the task execution process with enhanced feedback
+result = crew.kickoff(inputs={'topic': 'https://en.wikipedia.org/wiki/Maggie_Smith'})
+
+# https://en.wikipedia.org/wiki/Hurricane_Helene
+# https://cronkitenews.azpbs.org/2024/09/30/kenny-dillingham-importance-asu-football-basics/

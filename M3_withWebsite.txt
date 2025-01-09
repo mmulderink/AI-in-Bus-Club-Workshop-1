@@ -1,0 +1,58 @@
+import os
+from flask import Flask, render_template, request
+from openai import OpenAI
+from crewai import Agent, Task, Crew
+from crewai_tools import ScrapeWebsiteTool
+
+app = Flask(__name__)
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    assistant_reply = ''
+    topic_input = ''
+    if request.method == 'POST':
+        topic_input = request.form['topic_input']
+
+        OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+        openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+        scrape_tool = ScrapeWebsiteTool()
+        # Find more tools at https://docs.crewai.com/
+
+        # Creating a summarizer agent
+        initial_researcher = Agent(
+            role='Summarizer that concisely summarizes the information from a website',
+            goal='Do not miss any important info yet write concisely',
+            backstory="Driven to give great summaries to pass on.",
+            tools=[scrape_tool],
+            verbose=True,
+            output_file='research_summary.md'
+        )
+
+        # Task definition
+        determine_initial_researcher = Task(
+            description=(
+                "Get an understanding of the topic: {topic}. Use the research the initial research gives to do this."
+            ),
+            expected_output='A comprehensive list of bullet points that gives the full picture on the topic',
+            agent=initial_researcher,
+            output_file='output.md',
+        )
+
+        # Crew setup
+        crew = Crew(
+            agents=[initial_researcher],
+            tasks=[determine_initial_researcher],
+            max_rpm=100,
+        )
+
+        # Execute the task
+        result = crew.kickoff(inputs={'topic': topic_input})
+
+        # Get the assistant's reply
+        assistant_reply = determine_initial_researcher.output
+
+    return render_template('index.html', assistant_reply=assistant_reply, topic_input=topic_input)
+
+if __name__ == '__main__':
+    app.run(debug=True)
